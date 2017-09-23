@@ -103,7 +103,7 @@ Options:
             fallback='')
         self.telegram_recipients = list(
             map(
-                lambda a: a.replace(' ', ''),
+                lambda a: int(a.replace(' ', '')),
                 recipientlist.split(',')
                 )
             )
@@ -173,9 +173,16 @@ class EFABBot():
         self.recipients = recipients
         self.quiet = quiet
         self.debug = debug
+        self.offset = 0
+        self.bot = telepot.Bot(self.token)
+        self.myname = self.bot.getMe()['username']
+        self.commands = {
+                'start': self._handleStartCommand,
+                'id':    self._handleIdCommand,
+                'test':  self._handleTestCommand,
+                }
 
     def send(self, mail):
-        bot = telepot.Bot(self.token)
         opus = Wave2Opus(mail.wav)
         message = EFABMailExtractor(mail.text).text
         for r in self.recipients:
@@ -185,8 +192,46 @@ class EFABBot():
                     (r, mail.subject))
                 if self.debug:
                     print(message)
-            bot.sendMessage(r, message)
-            bot.sendVoice(r, opus.asFileObject(), caption=mail.subject)
+            self.bot.sendMessage(r, message)
+            self.bot.sendVoice(r, opus.asFileObject(), caption=mail.subject)
+
+    def _handleStartCommand(self, msg):
+        recipient = msg['chat']['id']
+        if not self.quiet:
+            print('Sending /start answer to %d' % recipient)
+        self.bot.sendMessage(recipient, "Ok, I'm ready.")
+
+    def _handleTestCommand(self, msg):
+        recipient = msg['chat']['id']
+        if not self.quiet:
+            print('Sending /test answer to %d' % recipient)
+        self.bot.sendMessage(recipient, "Test bestanden.")
+
+    def _handleIdCommand(self, msg):
+        recipient = msg['chat']['id']
+        if not self.quiet:
+            print('Sending /id answer to %d' % recipient)
+        self.bot.sendMessage(recipient, msg['chat']['id'])
+
+    def _handleMessage(self, msg):
+        if not 'text' in msg:
+            return
+        text = msg['text']
+        for cmd, handler in self.commands.items():
+            if text in [ '/'+cmd , '/'+cmd+'@'+self.myname ]:
+                if self.debug:
+                    print('Found command /%s, handler=%s' % (cmd, handler))
+                handler(msg)
+
+    def handleMessages(self):
+        try:
+            response = self.bot.getUpdates(offset=self.offset+1)
+            for msg in response:
+                self._handleMessage(msg['message'])
+                self.offset = msg['update_id']
+        except Exception as e:
+            print('Something unexptected during handleMessages(): %s' % e)
+            traceback.print_tb(sys.exc_info()[2])
 
 
 class EFABMail:
@@ -288,11 +333,12 @@ if "__main__" == __name__:
         quiet=config.quiet,
         debug=config.debug)
     try:
-        def signal_handler(signal, frame):
-            print('Exiting on TERM signal')
-            sys.exit(0)
-        signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(
+            signal.SIGTERM,
+            lambda s, f: (print('Exiting on TERM signal'), sys.exit(0))
+            )
         while True:
+            bot.handleMessages()
             asyncore.loop(timeout=1, count=1)
     except KeyboardInterrupt:
         print('Exiting on KeyboardInterrupt')
