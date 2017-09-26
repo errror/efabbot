@@ -1,0 +1,13 @@
+# /etc/systemd/system/efabbot.service
+[Unit]
+Description=Errror's Fritzbox Anrufbeantworter Bot
+After=network.target
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=True
+ExecStart=/etc/efabbot/efabbot.py /etc/efabbot/EFABBot.ini
+User=nobody
+
+[Install]
+WantedBy=multi-user.target
