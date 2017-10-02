@@ -229,8 +229,23 @@ class EFABBot():
             for msg in response:
                 self._handleMessage(msg['message'])
                 self.offset = msg['update_id']
+        except telepot.exception.BadHTTPResponse as te:
+            print('Got telepot.exception.BadHTTPResponse in EFABBot.handleMessages():')
+            try:
+                print('response=%s' % te.response)
+            except Exception as e:
+                pass
+            try:
+                print('status=%s'   % te.status)
+            except Exception as e:
+                pass
+            try:
+                print('text=%s'     % te.text)
+            except Exception as e:
+                pass
         except Exception as e:
-            print('Something unexptected during handleMessages(): %s' % e)
+            print('Something unexptected during handleMessages(): Got Exception type %s' % type(e))
+            print('Exception: %s' % e)
             traceback.print_tb(sys.exc_info()[2])
 
 
