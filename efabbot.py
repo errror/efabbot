@@ -19,6 +19,8 @@ import signal
 
 import pprint
 
+import urllib3.exceptions
+
 class EFABConfig:
     def __init__(self):
         self.getopts_short = 'hqda:p:B:r:'
@@ -230,19 +232,24 @@ class EFABBot():
                 self._handleMessage(msg['message'])
                 self.offset = msg['update_id']
         except telepot.exception.BadHTTPResponse as te:
-            print('Got telepot.exception.BadHTTPResponse in EFABBot.handleMessages():')
-            try:
-                print('response=%s' % te.response)
-            except Exception as e:
-                pass
-            try:
-                print('status=%s'   % te.status)
-            except Exception as e:
-                pass
-            try:
-                print('text=%s'     % te.text)
-            except Exception as e:
-                pass
+            if te.status in [ 502, ]:
+                print('Got telepot.exception.BadHTTPResponse(Bad Gateway) in EFABBot.handleMessages()')
+            else:
+                print('Got telepot.exception.BadHTTPResponse in EFABBot.handleMessages():')
+                try:
+                    print('response=%s' % te.response)
+                except Exception as e:
+                    pass
+                try:
+                    print('status=%s'   % te.status)
+                except Exception as e:
+                    pass
+                try:
+                    print('text=%s'     % te.text)
+                except Exception as e:
+                    pass
+        except urllib3.exceptions.MaxRetryError as e:
+            print('Got urllib3.exceptions.MaxRetryError in EFABBot.handleMessages()')
         except Exception as e:
             print('Something unexptected during handleMessages(): Got Exception type %s' % type(e))
             print('Exception: %s' % e)
