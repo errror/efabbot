@@ -185,7 +185,10 @@ class EFABBot():
                 }
 
     def send(self, mail):
-        opus = Wave2Opus(mail.wav)
+        if mail.wav:
+            opus = Wave2Opus(mail.wav)
+        else:
+            opus = None
         message = EFABMailExtractor(mail.text).text
         for r in self.recipients:
             if not self.quiet:
@@ -195,7 +198,8 @@ class EFABBot():
                 if self.debug:
                     print(message)
             self.bot.sendMessage(r, message)
-            self.bot.sendVoice(r, opus.asFileObject(), caption=mail.subject)
+            if opus:
+                self.bot.sendVoice(r, opus.asFileObject(), caption=mail.subject)
 
     def _handleStartCommand(self, msg):
         recipient = msg['chat']['id']
@@ -231,6 +235,23 @@ class EFABBot():
             for msg in response:
                 self._handleMessage(msg['message'])
                 self.offset = msg['update_id']
+        except telepot.exception.TelegramError as te:
+            if te.error_code in [ 502, ]:
+                print('Got telepot.exception.TelegramError(Bad Gateway) in EFABBot.handleMessages()')
+            else:
+                print('Got telepot.exception.TelegramError in EFABBot.handleMessages():')
+                try:
+                    print('descript-ion=%s' % te.description)
+                except Exception as e:
+                    pass
+                try:
+                    print('error_code=%s'   % te.error_code)
+                except Exception as e:
+                    pass
+                try:
+                    print('json=%s'     % te.json)
+                except Exception as e:
+                    pass            
         except telepot.exception.BadHTTPResponse as te:
             if te.status in [ 502, ]:
                 print('Got telepot.exception.BadHTTPResponse(Bad Gateway) in EFABBot.handleMessages()')
@@ -267,23 +288,29 @@ class EFABMail:
         payloads = mail.get_payload()
         if len(payloads) != 2:
             raise EFABMail.ParseError("mail does not contain 2 mime parts")
-        if payloads[1].get_content_type() != 'audio/x-wav':
+        if payloads[0].get_content_type() == 'multipart/alternative':
+            if payloads[1].get_content_type() != 'audio/x-wav':
+                raise EFABMail.ParseError(
+                    "mail does not contain a 'audio/x-wav' attachment: %s" %
+                    payloads[1].get_content_type())
+            body_payloads = payloads[0].get_payload()
+            if body_payloads[0].get_content_type() != 'text/plain':
+                raise EFABMail.ParseError(
+                    "mail with audio part does not contain a 'text/plain' body part: %s" %
+                    body_payloads[0].get_content_type())
+            self.text = body_payloads[0].get_payload(decode=True).decode()
+            self.wav = payloads[1].get_payload(decode=True)
+            header_bytes, encoding = email.header.decode_header(mail['Subject'])[0]
+            self.subject = header_bytes.decode(encoding)
+        elif payloads[0].get_content_type() == 'text/plain': 
+            self.text = payloads[0].get_payload(decode=True).decode()
+            self.wav = None
+            header_bytes, encoding = email.header.decode_header(mail['Subject'])[0]
+            self.subject = header_bytes.decode(encoding)
+        else:
             raise EFABMail.ParseError(
-                "mail does not contain a 'audio/x-wav' attachment: " %
-                payloads[1].get_content_type())
-        if payloads[0].get_content_type() != 'multipart/alternative':
-            raise EFABMail.ParseError(
-                "mail does not contain a 'multipart/alternative' body: " %
+                "mail does not contain a 'multipart/alternative' or 'text/plain' body: %s" %
                 payloads[0].get_content_type())
-        body_payloads = payloads[0].get_payload()
-        if body_payloads[0].get_content_type() != 'text/plain':
-            raise EFABMail.ParseError(
-                "mail does not contain a 'text/plain' body part: %s" %
-                body_payloads[0].get_content_type())
-        self.text = body_payloads[0].get_payload(decode=True).decode()
-        self.wav = payloads[1].get_payload(decode=True)
-        header_bytes, encoding = email.header.decode_header(mail['Subject'])[0]
-        self.subject = header_bytes.decode(encoding)
 
 
 class EFABServer(SMTPServer):
@@ -313,7 +340,9 @@ class EFABServer(SMTPServer):
                         (peer[0], mailfrom, ', '.join(rcpttos), len(data)) )
 
             if self.debug:
-                self.process_mimeparts(email.message_from_string(data), 0)
+                mail = email.message_from_string(data)
+                print('Subject: %s' % mail['Subject'])
+                self.process_mimeparts(mail, 0)
 
             self.bot.send(EFABMail(data))
 
