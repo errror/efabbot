@@ -300,13 +300,17 @@ class EFABMail:
                     body_payloads[0].get_content_type())
             self.text = body_payloads[0].get_payload(decode=True).decode()
             self.wav = payloads[1].get_payload(decode=True)
-            header_bytes, encoding = email.header.decode_header(mail['Subject'])[0]
-            self.subject = header_bytes.decode(encoding)
+            header_string, encoding = email.header.decode_header(mail['Subject'])[0]
+            if encoding != None:
+                print('Got non-None encoding decoding Subject header: %s (Subject: %s)' % (encoding, header_string))
+            self.subject = header_string
         elif payloads[0].get_content_type() == 'text/plain': 
             self.text = payloads[0].get_payload(decode=True).decode()
             self.wav = None
-            header_bytes, encoding = email.header.decode_header(mail['Subject'])[0]
-            self.subject = header_bytes.decode(encoding)
+            header_string, encoding = email.header.decode_header(mail['Subject'])[0]
+            if encoding != None:
+                print('Got non-None encoding decoding Subject header: %s (Subject: %s)' % (encoding, header_string))
+            self.subject = header_string
         else:
             raise EFABMail.ParseError(
                 "mail does not contain a 'multipart/alternative' or 'text/plain' body: %s" %
