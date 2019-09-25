@@ -140,7 +140,7 @@ class Wave2Opus:
             format='WAV')
         
         # convert the ulaw input into standard pcm output
-        pcm.buffer_write(ulaw.buffer_read(ctype='double'), ctype='double')
+        pcm.buffer_write(ulaw.buffer_read(dtype='float64'), dtype='float64')
 
         # get the data from the output BytesIO
         pcmdata = pcmfileobj.getvalue()
@@ -318,7 +318,7 @@ class EFABServer(SMTPServer):
         self.bot = telegram_bot
         self.quiet = quiet
         self.debug = debug
-        super(EFABServer, self).__init__((listen_address, listen_port), None)
+        super(EFABServer, self).__init__((listen_address, listen_port), None, decode_data=True)
 
     def process_mimeparts(self, mail, indent):    
         equals = "="*80
