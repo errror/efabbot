@@ -271,6 +271,8 @@ class EFABBot():
                     pass
         except urllib3.exceptions.MaxRetryError as e:
             print('Got urllib3.exceptions.MaxRetryError in EFABBot.handleMessages()')
+        except urllib3.exceptions.ReadTimeoutError as e:
+            print('Got urllib3.exceptions.ReadTimeoutError in EFABBot.handleMessages()')
         except Exception as e:
             print('Something unexptected during handleMessages(): Got Exception type %s' % type(e))
             print('Exception: %s' % e)
