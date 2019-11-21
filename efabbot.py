@@ -287,6 +287,15 @@ class EFABMail:
         mail = email.message_from_string(mailstring)
         if not mail.is_multipart():
             raise EFABMail.ParseError("mail is not MIME-multipart structured")
+        header_string, encoding = email.header.decode_header(mail['Subject'])[0]
+        if encoding != None:
+            #print('Got non-None encoding decoding Subject header: %s (Subject: %s)' % (encoding, header_string))
+            try:
+                decoded_subject = header_string.decode(encoding)
+                header_string = decoded_subject
+            except Exception as e:
+                print('While decoding subject (%s) with encoding "%s", the following exception occured: %s' % (header_string, encoding, str(e)))
+        self.subject = header_string
         payloads = mail.get_payload()
         if len(payloads) != 2:
             raise EFABMail.ParseError("mail does not contain 2 mime parts")
@@ -302,17 +311,9 @@ class EFABMail:
                     body_payloads[0].get_content_type())
             self.text = body_payloads[0].get_payload(decode=True).decode()
             self.wav = payloads[1].get_payload(decode=True)
-            header_string, encoding = email.header.decode_header(mail['Subject'])[0]
-            if encoding != None:
-                print('Got non-None encoding decoding Subject header: %s (Subject: %s)' % (encoding, header_string))
-            self.subject = header_string
         elif payloads[0].get_content_type() == 'text/plain': 
             self.text = payloads[0].get_payload(decode=True).decode()
             self.wav = None
-            header_string, encoding = email.header.decode_header(mail['Subject'])[0]
-            if encoding != None:
-                print('Got non-None encoding decoding Subject header: %s (Subject: %s)' % (encoding, header_string))
-            self.subject = header_string
         else:
             raise EFABMail.ParseError(
                 "mail does not contain a 'multipart/alternative' or 'text/plain' body: %s" %
