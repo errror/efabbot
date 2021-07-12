@@ -233,7 +233,8 @@ class EFABBot():
         try:
             response = self.bot.getUpdates(offset=self.offset+1)
             for msg in response:
-                self._handleMessage(msg['message'])
+                if 'message' in msg:
+                    self._handleMessage(msg['message'])
                 self.offset = msg['update_id']
         except telepot.exception.TelegramError as te:
             if te.error_code in [ 502, ]:
