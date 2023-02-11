@@ -165,8 +165,21 @@ class Wave2Opus:
 
 
 class EFABMailExtractor:
-    def __init__(self, mailtext):
+    def __init__(self, mailtext):        
         self.text = mailtext
+        try:
+            ignored_texts = [
+                'Nachricht von FRITZ!Box:',
+                'Die Weiterleitung der Anrufbeantworter-Nachrichten können Sie in Ihrer FRITZ!Box im Menü Telefoniegeräte deaktivieren.',
+                'Die Benachrichtigung bei ankommenden Anrufen können Sie in Ihrer FRITZ!Box im Menü "System > Push Service" deaktivieren.',
+            ]
+            for ignore in ignored_texts:
+                self.text = self.text.replace(ignore, '')
+            self.text = self.text.strip()
+        except Exception as e:
+            print('While extracting the text, an Exception occured: %s' % e)
+            print('mailtext: "%s"' % mailtext.replace('\n', '\\n'))
+            self.text = mailtext
 
 
 class EFABBot():
