@@ -20,6 +20,8 @@ import signal
 import pprint
 
 import urllib3.exceptions
+import time
+import json
 
 class EFABConfig:
     def __init__(self):
@@ -189,6 +191,8 @@ class EFABBot():
         self.quiet = quiet
         self.debug = debug
         self.offset = 0
+        self.last_exception = {}
+        self.exception_count = {}
         self.bot = telepot.Bot(self.token)
         self.myname = self.bot.getMe()['username']
         self.commands = {
@@ -242,6 +246,35 @@ class EFABBot():
                     print('Found command /%s, handler=%s' % (cmd, handler))
                 handler(msg)
 
+    def grace_exception(self, ex, msg):
+        # error_code (telepot.exception.TelegramError) or string of exception as dict key
+        try:
+            code = ex.error_code
+        except:
+            code = str(ex)
+        now = time.time()
+        # when last exception is long ago
+        if now - self.last_exception.get(code, 0) > 600:
+            # reset exception counter
+            self.exception_count[code] = 0
+        # always store time of last exception
+        self.last_exception[code] = now
+        # increment exception counter
+        self.exception_count[code] = self.exception_count.get(code, 0) + 1
+        # if exception counter hits limit
+        if self.exception_count[code] > 5:
+            # reset it and print the message
+            self.exception_count[code] = 0
+            print(msg)
+        # get retry_after (telepot.exception.TelegramError(Too Many Requests: retry after 5)) or use 5 seconds default
+        try:
+            retry_after = ex.json['parameters']['retry_after']
+        except:
+            retry_after = 5
+        # sleep retry_after plus 1 second to ensure != 0
+        time.sleep(retry_after+1)
+        return
+    
     def handleMessages(self):
         try:
             response = self.bot.getUpdates(offset=self.offset+1)
@@ -250,43 +283,17 @@ class EFABBot():
                     self._handleMessage(msg['message'])
                 self.offset = msg['update_id']
         except telepot.exception.TelegramError as te:
-            if te.error_code in [ 502, ]:
-                print('Got telepot.exception.TelegramError(Bad Gateway) in EFABBot.handleMessages()')
-            else:
-                print('Got telepot.exception.TelegramError in EFABBot.handleMessages():')
-                try:
-                    print('descript-ion=%s' % te.description)
-                except Exception as e:
-                    pass
-                try:
-                    print('error_code=%s'   % te.error_code)
-                except Exception as e:
-                    pass
-                try:
-                    print('json=%s'     % te.json)
-                except Exception as e:
-                    pass            
-        except telepot.exception.BadHTTPResponse as te:
-            if te.status in [ 502, ]:
-                print('Got telepot.exception.BadHTTPResponse(Bad Gateway) in EFABBot.handleMessages()')
-            else:
-                print('Got telepot.exception.BadHTTPResponse in EFABBot.handleMessages():')
-                try:
-                    print('response=%s' % te.response)
-                except Exception as e:
-                    pass
-                try:
-                    print('status=%s'   % te.status)
-                except Exception as e:
-                    pass
-                try:
-                    print('text=%s'     % te.text)
-                except Exception as e:
-                    pass
+            # 429: Too Many Requests: retry after 5
+            # 502: Bad Gateway
+            if te.error_code not in [ 429, 502, ]: # never occured in 3 years
+                raise re
+            self.grace_exception(te, f'Got telepot.exception.TelegramError({te.description}) in EFABBot.handleMessages()')
         except urllib3.exceptions.MaxRetryError as e:
-            print('Got urllib3.exceptions.MaxRetryError in EFABBot.handleMessages()')
+            self.grace_exception(e, 'Got urllib3.exceptions.MaxRetryError in EFABBot.handleMessages()')
         except urllib3.exceptions.ReadTimeoutError as e:
-            print('Got urllib3.exceptions.ReadTimeoutError in EFABBot.handleMessages()')
+            self.grace_exception(e, 'Got urllib3.exceptions.ReadTimeoutError in EFABBot.handleMessages()')
+        except urllib3.exceptions.ProtocolError as e:
+            self.grace_exception(e, 'Got urllib3.exceptions.ProtocolError in EFABBot.handleMessages()')
         except Exception as e:
             print('Something unexptected during handleMessages(): Got Exception type %s' % type(e))
             print('Exception: %s' % e)
