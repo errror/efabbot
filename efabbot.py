@@ -286,7 +286,7 @@ class EFABBot():
             # 429: Too Many Requests: retry after 5
             # 502: Bad Gateway
             if te.error_code not in [ 429, 502, ]: # never occured in 3 years
-                raise re
+                raise te
             self.grace_exception(te, f'Got telepot.exception.TelegramError({te.description}) in EFABBot.handleMessages()')
         except urllib3.exceptions.MaxRetryError as e:
             self.grace_exception(e, 'Got urllib3.exceptions.MaxRetryError in EFABBot.handleMessages()')
